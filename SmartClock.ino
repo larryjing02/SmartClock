@@ -60,6 +60,8 @@ unsigned long LAST_SPRITE_UPDATE = 0;
 
 void setup() {
   Serial.begin(9600);
+  // Seed entropy with floating analog pin
+  randomSeed(analogRead(A0));
 
   initializeMatrix();
   initializeWifi();
@@ -114,6 +116,7 @@ void initializeTime() {
   while (!time(nullptr)) {
     delay(1000);
   }
+  delay(2000);
 }
 
 
@@ -127,41 +130,77 @@ void loop() {
 
 void handleTime() {
   int curSpriteIndex = 0;
-  int curSpriteDelay = 0;
-  int spriteRepeatCount = 0;
+  int curSpriteDelay = 1;
+  int spriteRepeatCount = 1;
   char curSpriteFrame = 'H';
   time_t localTime = myTZ.toLocal(time(nullptr));
+  bool displaySemicolon = true;
 
   // TODO: Integrate buttons
   while (true) {
-
+    // Update every second
     if (millis() - LAST_TEXT_UPDATE >= 1000) {
+
+      Serial.print("CurSpriteIndex: ");
+      Serial.println(curSpriteIndex);
+      Serial.print("curSpriteDelay: ");
+      Serial.println(curSpriteDelay);
+      Serial.print("spriteRepeatCount: ");
+      Serial.println(spriteRepeatCount);
+      Serial.print("curSpriteFrame: ");
+      Serial.println(curSpriteFrame);
+      Serial.println("==============");
+
       LAST_TEXT_UPDATE = millis();
       // Update time and redisplay every second
       localTime = myTZ.toLocal(time(nullptr));
       if (spriteRepeatCount == 0) {
         // Randomly switch to a new type of sprite
         curSpriteIndex = random(sizeof(SPRITES) / sizeof(sprite));
-        spriteRepeatCount = random(SPRITES[curSpriteIndex].repeat_a, SPRITES[curSpriteIndex].repeat_b);
+        Serial.print("Switching to sprite ");
+        Serial.println(curSpriteIndex);
+        sprite curSprite = SPRITES[curSpriteIndex];
+        spriteRepeatCount = random(curSprite.repeat_a, curSprite.repeat_b);
+        curSpriteDelay = random(curSprite.delay_a, curSprite.delay_b);
+        curSpriteFrame = curSprite.frames[random(sizeof(curSprite.frames) - 1)];
+        Serial.print("new: curSpriteDelay: ");
+        Serial.println(curSpriteDelay);
+        Serial.print("new: spriteRepeatCount: ");
+        Serial.println(spriteRepeatCount);
+        Serial.print("new: curSpriteFrame: ");
+        Serial.println(curSpriteFrame);
+        Serial.println("--------------");
       } else if (curSpriteDelay == 0) {
         // Randomly switch to a new frame of this sprite
         sprite curSprite = SPRITES[curSpriteIndex];
-        curSpriteFrame = curSprite.frames[random(sizeof(curSprite.frames) - 1)];
         curSpriteDelay = random(curSprite.delay_a, curSprite.delay_b);
+        curSpriteFrame = curSprite.frames[random(sizeof(curSprite.frames) - 1)];
         spriteRepeatCount--;
+        Serial.print("FRAME: curSpriteDelay: ");
+        Serial.println(curSpriteDelay);
+        Serial.print("FRAME: spriteRepeatCount: ");
+        Serial.println(spriteRepeatCount);
+        Serial.print("FRAME: curSpriteFrame: ");
+        Serial.println(curSpriteFrame);
+        Serial.println("--------------");
       }
-      displayTime(hourFormat12(localTime), minute(localTime), curSpriteFrame);
+      displayTime(hourFormat12(localTime), minute(localTime), curSpriteFrame, displaySemicolon);
+      displaySemicolon = !displaySemicolon;
+      Serial.print(displaySemicolon);
       curSpriteDelay--;
     }
-
     delay(150);
   }
 }
 
-void displayTime(int hour, int min, char sprite) {
+void displayTime(int hour, int min, char sprite, bool displaySemicolon) {
   // Get current local time and format it as a string
   char timeString[5];
-  sprintf(timeString,"%d:%02d", hour, min);
+  if (displaySemicolon) {
+    sprintf(timeString,"%d:%02d", hour, min);
+  } else {
+    sprintf(timeString,"%d_%02d", hour, min);
+  }
   Serial.println(timeString);
   char formatted[10];
   int index = 0;
