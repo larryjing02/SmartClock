@@ -76,6 +76,7 @@ void initializeMatrix() {
   matrix.setIntensity(0);
   matrix.setInvert(false);
   matrix.setFont(nullptr);
+  matrix.setCharSpacing(1);
   matrix.setTextAlignment(PA_CENTER);
   matrix.displayClear();
 }
@@ -102,16 +103,19 @@ void initializeWifi() {
 }
 
 void initializeSpriteMatrix() {
+  matrix.displayClear();
   matrix.setFont(numSpriteFont);
   matrix.setCharSpacing(0);
-  matrix.print("QI");
   matrix.setTextAlignment(PA_LEFT);
 }
 
 void initializeTime() {
   // Set time using NTP server
   configTime(0, 0, "pool.ntp.org");
-  
+
+  // Temporarily show something on display while time delay processes
+  matrix.print("QI");
+
   // Wait for time to be set
   while (!time(nullptr)) {
     delay(1000);
@@ -128,6 +132,8 @@ void loop() {
   switch (STATE) {
     case 0:
       handleTime();
+      // Await release of button prior to handling next state
+      while (digitalRead(BUTTON_B) == HIGH) delay(150);
       break;
     case 1:
       handleQuote();
@@ -226,31 +232,52 @@ void displayTime(int hour, int min, char sprite, bool displaySemicolon) {
   finalStr[finalLen - 1] = NULL_TERMINATOR;
   memset(finalStr, DELIMITER, finalLen - 2);
   strncpy(finalStr + (spacerCount / 2), formatted, strlen(formatted));
-  
+  matrix.displayClear();
   matrix.print(finalStr);
 }
 
 void handleQuote() {
-  matrix.print("-_-_-_-");
   Serial.println("STATE 1");
   // If wifi error, switch to handleText (STATE = 2)
   // Make request and display quote
   //    If button is pressed during animation, switch to handlePomodoro (STATE = 3)
   // If animation reaches completion, switch to handleTime (STATE = 0)
-  delay(5000);
-  STATE = 0;
+  scrollText("QUOTEAPI MADE ME");
+
 }
 
 void handleText() {
-  matrix.print("+_+_+_+");
   Serial.println("STATE 2");
-  delay(5000);
-  STATE = 0;
+  scrollText("Hello! This is quite a long message that I'm displaying on my scrolling board!");
 }
 
 void handlePomodoro() {
   Serial.println("STATE 3");
   matrix.print("+_-_+_-");
   delay(5000);
+  STATE = 0;
+}
+
+void scrollText(char* message) {
+  initializeMatrix();
+  Serial.print("Now about to scroll this message! : ");
+  Serial.println(message);
+  matrix.displayText(message, PA_LEFT, 75, 0, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
+  Serial.print("displayScroll this message! : ");
+  // Loop until message finishes or button is pressed
+  while (!matrix.displayAnimate()) {
+    // Check for button press
+    if (digitalRead(BUTTON_B) == HIGH) {
+      // Button pressed, stop scrolling
+      Serial.print("button pressed!!!! : ");
+      initializeSpriteMatrix();
+      STATE = 3;
+      return;
+    }
+    // Avoid soft WDT reset
+    delay(10);
+  }
+  Serial.print("finished displaying this message! : ");
+  initializeSpriteMatrix();
   STATE = 0;
 }
