@@ -11,7 +11,12 @@
 #define MAX_DEVICES 4
 #define CS_PIN      15
 
+#define BUTTON_A    5
+#define BUTTON_B    4
+
 // Software Options
+#define LONG_PRESS_DELAY_MS   1000
+
 // Sprite Struct for sprite animation frames
 typedef struct
 {
@@ -48,11 +53,15 @@ const char NULL_TERMINATOR = '\0';
 
 unsigned long LAST_TEXT_UPDATE = 0;
 unsigned long LAST_SPRITE_UPDATE = 0;
+short STATE = 0;
 
 void setup() {
   Serial.begin(9600);
   // Seed entropy with floating analog pin
   randomSeed(analogRead(A0));
+  // Initialize buttons
+  pinMode(BUTTON_A, INPUT);
+  pinMode(BUTTON_B, INPUT);
 
   initializeMatrix();
   initializeWifi();
@@ -72,6 +81,7 @@ void initializeMatrix() {
 }
 
 void initializeWifi() {
+  // TODO: Refactor to use icon
   matrix.print("WiFi");
   WiFiManager wifiManager;
   // Reset WiFi settings for testing purposes
@@ -110,9 +120,26 @@ void initializeTime() {
 }
 
 
-
+// MAIN PROCESSING LOOP
+// - utilizes button input
+// - delegates state to various handlers
 void loop() {
-  handleTime();
+  Serial.print("In loop, state is " + STATE);
+  switch (STATE) {
+    case 0:
+      handleTime();
+      break;
+    case 1:
+      handleQuote();
+      break;
+    case 2:
+      handleText();
+      break;
+    case 3:
+      handlePomodoro();
+      break;
+  }
+  
   // TODO: Refactor global loop delay
   delay(150);
 }
@@ -125,8 +152,8 @@ void handleTime() {
   time_t localTime = myTZ.toLocal(time(nullptr));
   bool displaySemicolon = true;
 
-  // TODO: Integrate buttons
-  while (true) {
+  // Clock repeats until button is pressed
+  while (digitalRead(BUTTON_B) == LOW) {
     // Update every second
     if (millis() - LAST_TEXT_UPDATE >= 1000) {
 
@@ -157,6 +184,19 @@ void handleTime() {
     }
     delay(150);
   }
+
+  // If this point is reached, button 2 is currently pressed!
+  long pressTracker = millis();
+  while (digitalRead(BUTTON_B) == HIGH) {
+    if ((millis() - pressTracker) > LONG_PRESS_DELAY_MS) {
+      Serial.println("Long Press: State 2 Triggered");
+      STATE = 2;
+      return;
+    }
+    delay(150);
+  }
+  Serial.println("Short Press: State 1 Triggered");
+  STATE = 1;
 }
 
 void displayTime(int hour, int min, char sprite, bool displaySemicolon) {
@@ -188,4 +228,29 @@ void displayTime(int hour, int min, char sprite, bool displaySemicolon) {
   strncpy(finalStr + (spacerCount / 2), formatted, strlen(formatted));
   
   matrix.print(finalStr);
+}
+
+void handleQuote() {
+  matrix.print("-_-_-_-");
+  Serial.println("STATE 1");
+  // If wifi error, switch to handleText (STATE = 2)
+  // Make request and display quote
+  //    If button is pressed during animation, switch to handlePomodoro (STATE = 3)
+  // If animation reaches completion, switch to handleTime (STATE = 0)
+  delay(5000);
+  STATE = 0;
+}
+
+void handleText() {
+  matrix.print("+_+_+_+");
+  Serial.println("STATE 2");
+  delay(5000);
+  STATE = 0;
+}
+
+void handlePomodoro() {
+  Serial.println("STATE 3");
+  matrix.print("+_-_+_-");
+  delay(5000);
+  STATE = 0;
 }
