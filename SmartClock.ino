@@ -12,23 +12,6 @@
 #define CS_PIN      15
 
 // Software Options
-// How long a sprite frame is displayed
-#define SPRITE_DELAY_A = 2
-#define SPRITE_DELAY_B = 8
-// How many times a sprite's various frames appear
-#define SPRITE_REPEAT_A = 4
-#define SPRITE_REPEAT_B = 10
-
-
-
-MD_Parola matrix = MD_Parola(HARDWARE_TYPE, CS_PIN, MAX_DEVICES);
-
-// Time change rules for your timezone
-TimeChangeRule dstStart = {"PDT", Second, Sun, Mar, 2, -420};  // UTC - 7 hours
-TimeChangeRule stdStart = {"PST", First, Sun, Nov, 2, -480};   // UTC - 8 hours
-// Timezone object with the time change rules
-Timezone myTZ(dstStart, stdStart);
-
 // Sprite Struct for sprite animation frames
 typedef struct
 {
@@ -37,7 +20,7 @@ typedef struct
   // How long a sprite frame is displayed
   const int delay_a;
   const int delay_b;
-  // How many times a sprite's various frames appear
+  // How many sprite frames appear total
   const int repeat_a;
   const int repeat_b;
 } sprite;
@@ -45,12 +28,20 @@ typedef struct
 const sprite SPRITES[] =
 {
   { "Heart", "HIJ", 1, 2, 3, 10 },
-  { "Happy", "NOP", 3, 6, 4, 8 },
+  { "Happy", "NOP", 2, 5, 6, 16 },
   { "Smile", "QRS", 1, 5, 4, 8 },
-  { "Cutie", "TUVW", 3, 6, 4, 12 },
-  { "Sadge", "XYZ[", 3, 6, 4, 8 },
-  { "Volcano", "Dd", 1, 2, 1, 3 },
+  { "Cutie", "TUVW", 3, 6, 4, 16 },
+  { "Sadge", "XYZ[", 3, 6, 4, 14 },
+  { "Volcano", "Dd", 1, 2, 1, 2 },
 };
+
+MD_Parola matrix = MD_Parola(HARDWARE_TYPE, CS_PIN, MAX_DEVICES);
+
+// Time change rules for your timezone
+TimeChangeRule dstStart = {"PDT", Second, Sun, Mar, 2, -420};  // UTC - 7 hours
+TimeChangeRule stdStart = {"PST", First, Sun, Nov, 2, -480};   // UTC - 8 hours
+// Timezone object with the time change rules
+Timezone myTZ(dstStart, stdStart);
 
 const char DELIMITER = '_';
 const char NULL_TERMINATOR = '\0';
@@ -101,7 +92,6 @@ void initializeWifi() {
 }
 
 void initializeSpriteMatrix() {
-  
   matrix.setFont(numSpriteFont);
   matrix.setCharSpacing(0);
   matrix.print("QI");
@@ -116,13 +106,12 @@ void initializeTime() {
   while (!time(nullptr)) {
     delay(1000);
   }
-  delay(2000);
+  delay(1000);
 }
 
 
 
 void loop() {
-  
   handleTime();
   // TODO: Refactor global loop delay
   delay(150);
@@ -141,52 +130,29 @@ void handleTime() {
     // Update every second
     if (millis() - LAST_TEXT_UPDATE >= 1000) {
 
-      Serial.print("CurSpriteIndex: ");
-      Serial.println(curSpriteIndex);
-      Serial.print("curSpriteDelay: ");
-      Serial.println(curSpriteDelay);
-      Serial.print("spriteRepeatCount: ");
-      Serial.println(spriteRepeatCount);
-      Serial.print("curSpriteFrame: ");
-      Serial.println(curSpriteFrame);
-      Serial.println("==============");
-
       LAST_TEXT_UPDATE = millis();
       // Update time and redisplay every second
       localTime = myTZ.toLocal(time(nullptr));
       if (spriteRepeatCount == 0) {
         // Randomly switch to a new type of sprite
         curSpriteIndex = random(sizeof(SPRITES) / sizeof(sprite));
-        Serial.print("Switching to sprite ");
+        Serial.print("Switch to sprite #");
         Serial.println(curSpriteIndex);
         sprite curSprite = SPRITES[curSpriteIndex];
         spriteRepeatCount = random(curSprite.repeat_a, curSprite.repeat_b);
         curSpriteDelay = random(curSprite.delay_a, curSprite.delay_b);
-        curSpriteFrame = curSprite.frames[random(sizeof(curSprite.frames) - 1)];
-        Serial.print("new: curSpriteDelay: ");
-        Serial.println(curSpriteDelay);
-        Serial.print("new: spriteRepeatCount: ");
-        Serial.println(spriteRepeatCount);
-        Serial.print("new: curSpriteFrame: ");
-        Serial.println(curSpriteFrame);
-        Serial.println("--------------");
+        curSpriteFrame = curSprite.frames[random(strlen(curSprite.frames))];
       } else if (curSpriteDelay == 0) {
         // Randomly switch to a new frame of this sprite
         sprite curSprite = SPRITES[curSpriteIndex];
         curSpriteDelay = random(curSprite.delay_a, curSprite.delay_b);
-        curSpriteFrame = curSprite.frames[random(sizeof(curSprite.frames) - 1)];
+        curSpriteFrame = curSprite.frames[random(strlen(curSprite.frames))];
         spriteRepeatCount--;
-        Serial.print("FRAME: curSpriteDelay: ");
-        Serial.println(curSpriteDelay);
-        Serial.print("FRAME: spriteRepeatCount: ");
-        Serial.println(spriteRepeatCount);
-        Serial.print("FRAME: curSpriteFrame: ");
+        Serial.print("Update sprite frame: ");
         Serial.println(curSpriteFrame);
-        Serial.println("--------------");
       }
       displayTime(hourFormat12(localTime), minute(localTime), curSpriteFrame, displaySemicolon);
       displaySemicolon = !displaySemicolon;
-      Serial.print(displaySemicolon);
       curSpriteDelay--;
     }
     delay(150);
