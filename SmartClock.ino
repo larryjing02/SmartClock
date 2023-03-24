@@ -1,4 +1,8 @@
 #include <WiFiManager.h>
+#include <WiFiClient.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <Arduino_JSON.h>
 #include <TimeLib.h>
 #include <Timezone.h>
 #include <SPI.h>
@@ -50,6 +54,7 @@ Timezone myTZ(dstStart, stdStart);
 
 const char DELIMITER = '_';
 const char NULL_TERMINATOR = '\0';
+const String QOTD_ENDPOINT = "http://quotes.rest/qod.json";
 
 unsigned long LAST_TEXT_UPDATE = 0;
 unsigned long LAST_SPRITE_UPDATE = 0;
@@ -128,7 +133,6 @@ void initializeTime() {
 // - utilizes button input
 // - delegates state to various handlers
 void loop() {
-  Serial.print("In loop, state is " + STATE);
   switch (STATE) {
     case 0:
       handleTime();
@@ -181,8 +185,6 @@ void handleTime() {
         curSpriteDelay = random(curSprite.delay_a, curSprite.delay_b);
         curSpriteFrame = curSprite.frames[random(strlen(curSprite.frames))];
         spriteRepeatCount--;
-        Serial.print("Update sprite frame: ");
-        Serial.println(curSpriteFrame);
       }
       displayTime(hourFormat12(localTime), minute(localTime), curSpriteFrame, displaySemicolon);
       displaySemicolon = !displaySemicolon;
@@ -237,39 +239,60 @@ void displayTime(int hour, int min, char sprite, bool displaySemicolon) {
 }
 
 void handleQuote() {
-  Serial.println("STATE 1");
+  Serial.println("STATE 1: Quote API");
   // If wifi error, switch to handleText (STATE = 2)
-  // Make request and display quote
-  //    If button is pressed during animation, switch to handlePomodoro (STATE = 3)
-  // If animation reaches completion, switch to handleTime (STATE = 0)
-  scrollText("QUOTEAPI MADE ME");
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.setReuse(false);
+    WiFiClient client;
+    if (http.begin(client, QOTD_ENDPOINT)) {
+      int httpCode = http.GET();
+      if (httpCode > 0) {
+        Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+        if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
+          String payload = http.getString();
+          String quote = getJSONQuote(payload);
+          Serial.println(quote);
+          // Displays quote and sets following state to 0
+          scrollText(quote.c_str());
+        }
+      } else {
+        Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+      }
+      http.end();
+    } else {
+      Serial.println("[HTTP} Unable to connect. Moving to state 2");
+    }
+  } else {
+    Serial.println("WiFi is not connected. Moving to state 2");
+  }
+  // Catch errors by promoting state to 2
+  if (STATE == 1) {
+    STATE = 2;
+  } 
+}
 
+// Retrieves quote from HTTP-returned JSON String
+String getJSONQuote(String input) {
+    JSONVar myObject = JSON.parse(input);
+    String quote = (const char*) myObject["contents"]["quotes"][0]["quote"];
+    String auth = (const char*) myObject["contents"]["quotes"][0]["author"];
+    return "\"" + quote + "\" - " + auth;
 }
 
 void handleText() {
-  Serial.println("STATE 2");
+  Serial.println("STATE 2: Message Display");
   scrollText("Hello! This is quite a long message that I'm displaying on my scrolling board!");
 }
 
-void handlePomodoro() {
-  Serial.println("STATE 3");
-  matrix.print("+_-_+_-");
-  delay(5000);
-  STATE = 0;
-}
-
-void scrollText(char* message) {
+void scrollText(const char* message) {
   initializeMatrix();
-  Serial.print("Now about to scroll this message! : ");
-  Serial.println(message);
   matrix.displayText(message, PA_LEFT, 75, 0, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
-  Serial.print("displayScroll this message! : ");
   // Loop until message finishes or button is pressed
   while (!matrix.displayAnimate()) {
     // Check for button press
     if (digitalRead(BUTTON_B) == HIGH) {
       // Button pressed, stop scrolling
-      Serial.print("button pressed!!!! : ");
       initializeSpriteMatrix();
       STATE = 3;
       return;
@@ -277,7 +300,13 @@ void scrollText(char* message) {
     // Avoid soft WDT reset
     delay(10);
   }
-  Serial.print("finished displaying this message! : ");
   initializeSpriteMatrix();
+  STATE = 0;
+}
+
+void handlePomodoro() {
+  Serial.println("STATE 3: Pomodoro");
+  matrix.print("+_-_+_-");
+  delay(5000);
   STATE = 0;
 }
