@@ -19,7 +19,9 @@
 #define BUTTON_B    4
 
 // Software Options
+#define SCROLL_SPEED          75    // lower value is faster scrolling
 #define LONG_PRESS_DELAY_MS   1000
+
 
 // Sprite Struct for sprite animation frames
 typedef struct
@@ -201,7 +203,7 @@ void handleTime() {
       STATE = 2;
       return;
     }
-    delay(150);
+    delay(10);
   }
   Serial.println("Short Press: State 1 Triggered");
   STATE = 1;
@@ -287,7 +289,7 @@ void handleText() {
 
 void scrollText(const char* message) {
   initializeMatrix();
-  matrix.displayText(message, PA_LEFT, 75, 0, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
+  matrix.displayText(message, PA_LEFT, SCROLL_SPEED, 0, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
   // Loop until message finishes or button is pressed
   while (!matrix.displayAnimate()) {
     // Check for button press
