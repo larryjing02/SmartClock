@@ -21,7 +21,8 @@
 // Software Options
 #define SCROLL_SPEED          75    // lower value is faster scrolling
 #define LONG_PRESS_DELAY_MS   1000
-
+#define STUDY_MINUTES         25
+#define BREAK_MINUTES         5
 
 // Sprite Struct for sprite animation frames
 typedef struct
@@ -43,7 +44,7 @@ const sprite SPRITES[] =
   { "Smile", "QRS", 1, 5, 4, 8 },
   { "Cutie", "TUVW", 3, 6, 4, 16 },
   { "Sadge", "XYZ[", 3, 6, 4, 14 },
-  { "Volcano", "Dd", 1, 2, 1, 2 },
+  { "Amogus", "BCD", 1, 2, 1, 2 },
 };
 
 MD_Parola matrix = MD_Parola(HARDWARE_TYPE, CS_PIN, MAX_DEVICES);
@@ -55,6 +56,11 @@ TimeChangeRule stdStart = {"PST", First, Sun, Nov, 2, -480};   // UTC - 8 hours
 Timezone myTZ(dstStart, stdStart);
 
 const char DELIMITER = '_';
+const char STUDY_SPRITE_A = 't';
+const char STUDY_SPRITE_B = 'u';
+const char BREAK_SPRITE_A = 'r';
+const char BREAK_SPRITE_B = 's';
+const char HEART_SPRITE = 'H';
 const char NULL_TERMINATOR = '\0';
 const String QOTD_ENDPOINT = "http://quotes.rest/qod.json";
 
@@ -138,8 +144,6 @@ void loop() {
   switch (STATE) {
     case 0:
       handleTime();
-      // Await release of button prior to handling next state
-      while (digitalRead(BUTTON_B) == HIGH) delay(150);
       break;
     case 1:
       handleQuote();
@@ -154,13 +158,15 @@ void loop() {
   
   // TODO: Refactor global loop delay
   delay(150);
+  // Await release of button prior to handling next state
+  while (digitalRead(BUTTON_B) == HIGH) delay(150);
 }
 
 void handleTime() {
   int curSpriteIndex = 0;
   int curSpriteDelay = 1;
   int spriteRepeatCount = 1;
-  char curSpriteFrame = 'H';
+  char curSpriteFrame = HEART_SPRITE;
   time_t localTime = myTZ.toLocal(time(nullptr));
   bool displaySemicolon = true;
 
@@ -175,9 +181,9 @@ void handleTime() {
       if (spriteRepeatCount == 0) {
         // Randomly switch to a new type of sprite
         curSpriteIndex = random(sizeof(SPRITES) / sizeof(sprite));
-        Serial.print("Switch to sprite #");
-        Serial.println(curSpriteIndex);
         sprite curSprite = SPRITES[curSpriteIndex];
+        Serial.print("Switch to sprite: ");
+        Serial.println(curSprite.name);
         spriteRepeatCount = random(curSprite.repeat_a, curSprite.repeat_b);
         curSpriteDelay = random(curSprite.delay_a, curSprite.delay_b);
         curSpriteFrame = curSprite.frames[random(strlen(curSprite.frames))];
@@ -188,7 +194,7 @@ void handleTime() {
         curSpriteFrame = curSprite.frames[random(strlen(curSprite.frames))];
         spriteRepeatCount--;
       }
-      displayTime(hourFormat12(localTime), minute(localTime), curSpriteFrame, displaySemicolon);
+      displayTime(hourFormat12(localTime), minute(localTime), curSpriteFrame, displaySemicolon, false);
       displaySemicolon = !displaySemicolon;
       curSpriteDelay--;
     }
@@ -209,7 +215,7 @@ void handleTime() {
   STATE = 1;
 }
 
-void displayTime(int hour, int min, char sprite, bool displaySemicolon) {
+void displayTime(int hour, int min, char sprite, bool displaySemicolon, bool spriteFirst) {
   // Get current local time and format it as a string
   char timeString[5];
   if (displaySemicolon) {
@@ -228,14 +234,20 @@ void displayTime(int hour, int min, char sprite, bool displaySemicolon) {
   }
   formatted[index] = NULL_TERMINATOR;
   
-  // Add spacers to center time (may eventually replace with seconds indicator)
+  // Add spacers to center time
   int spacerCount = 24 - matrix.getTextColumns(formatted);
   int finalLen = spacerCount + strlen(formatted) + 2;
   char finalStr[finalLen];
-  finalStr[finalLen - 2] = sprite;
+  if (spriteFirst) {
+    finalStr[0] = sprite;
+    memset(finalStr + 1, DELIMITER, finalLen - 2);
+    strncpy(finalStr + (spacerCount / 2) + 1, formatted, strlen(formatted));
+  } else {
+    finalStr[finalLen - 2] = sprite;
+    memset(finalStr, DELIMITER, finalLen - 2);
+    strncpy(finalStr + (spacerCount / 2), formatted, strlen(formatted));
+  }
   finalStr[finalLen - 1] = NULL_TERMINATOR;
-  memset(finalStr, DELIMITER, finalLen - 2);
-  strncpy(finalStr + (spacerCount / 2), formatted, strlen(formatted));
   matrix.displayClear();
   matrix.print(finalStr);
 }
@@ -308,7 +320,59 @@ void scrollText(const char* message) {
 
 void handlePomodoro() {
   Serial.println("STATE 3: Pomodoro");
-  matrix.print("+_-_+_-");
-  delay(5000);
+  // Repeat timer 3 times (S-B-S-B-S-B)
+  for (int i = 0; STATE == 3 && i < 3; i++) {
+    // Study timer
+    countdownTimer(false);
+    if (STATE == 0) {
+      return;
+    }
+    matrix.displayClear();
+    matrix.print("__SHt__");
+    delay(2000);
+    for (int fistpump = 0; i < 10; i++) {
+      matrix.print("rsrs");
+      delay(500);
+      matrix.print("srsr");
+      delay(500);
+    }
+    // Break Timer
+    countdownTimer(true);
+  }
   STATE = 0;
+}
+
+void countdownTimer(bool isBreak) {
+  int minutes = STUDY_MINUTES;
+  char sprite_a = 't';
+  char sprite_b = 'u';
+  if (isBreak) {
+    minutes = BREAK_MINUTES;
+    sprite_a = 'r';
+    sprite_b = 's';
+  }
+  bool flag = true;
+  int seconds = 0;
+  while (digitalRead(BUTTON_B) == LOW && minutes > 0) {
+    // Update every second
+    if (millis() - LAST_TEXT_UPDATE >= 1000) {
+      if (seconds < 0) {
+        seconds = 60;
+        minutes--;
+      }
+      seconds--;
+      LAST_TEXT_UPDATE = millis();
+      if (flag) {
+        displayTime(minutes, seconds, sprite_a, true, true);
+      } else {
+        displayTime(minutes, seconds, sprite_b, true, true);
+      }
+      flag = !flag;
+    }
+    delay(150);
+  }
+  while (digitalRead(BUTTON_B) == HIGH) {
+    STATE = 0;
+    delay(150);
+  }
 }
