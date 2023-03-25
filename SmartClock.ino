@@ -21,8 +21,8 @@
 // Software Options
 #define SCROLL_SPEED          75    // lower value is faster scrolling
 #define LONG_PRESS_DELAY_MS   1000
-#define STUDY_MINUTES         1
-#define BREAK_MINUTES         2
+#define STUDY_MINUTES         25
+#define BREAK_MINUTES         5
 
 // Sprite Struct for sprite animation frames
 typedef struct
@@ -67,7 +67,7 @@ const String QOTD_ENDPOINT = "http://quotes.rest/qod.json";
 unsigned long LAST_TEXT_UPDATE = 0;
 unsigned long LAST_SPRITE_UPDATE = 0;
 short STATE = 0;
-short CURRENT_BRIGHTNESS = 4;
+short CURRENT_BRIGHTNESS = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -228,13 +228,13 @@ void handleTime() {
   STATE = 1;
 }
 
-void displayTime(int hour, int min, char sprite, bool displaySemicolon, bool spriteFirst) {
+void displayTime(int timeUnitA, int timeUnitB, char sprite, bool displaySemicolon, bool spriteFirst) {
   // Get current local time and format it as a string
   char timeString[5];
   if (displaySemicolon) {
-    sprintf(timeString,"%d:%02d", hour, min);
+    sprintf(timeString,"%d:%02d", timeUnitA, timeUnitB);
   } else {
-    sprintf(timeString,"%d_%02d", hour, min);
+    sprintf(timeString,"%d_%02d", timeUnitA, timeUnitB);
   }
   Serial.println(timeString);
   char formatted[10];
@@ -342,10 +342,10 @@ void handlePomodoro() {
       return;
     }
     matrix.displayClear();
-    for (int fistpump = 0; i < 10; i++) {
-      matrix.print("rsrs");
+    for (int fistpump = 0; fistpump < 8; fistpump++) {
+      matrix.print("SsQs");
       delay(500);
-      matrix.print("srsr");
+      matrix.print("SrQr");
       delay(500);
     }
     // Break Timer
@@ -365,6 +365,7 @@ void countdownTimer(bool isBreak) {
     sprite_a = 'r';
     sprite_b = 's';
   }
+  Serial.printf("Starting a %d minute countdown timer\n", minutes);
   bool flag = true;
   int seconds = 0;
   while (digitalRead(BUTTON_B) == LOW && minutes >= 0) {
