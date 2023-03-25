@@ -127,7 +127,7 @@ void initializeTime() {
   configTime(0, 0, "pool.ntp.org");
 
   // Temporarily show something on display while time delay processes
-  matrix.print("QI");
+  matrix.print("AQI");
 
   // Wait for time to be set
   while (!time(nullptr)) {
@@ -353,20 +353,21 @@ void countdownTimer(bool isBreak) {
   }
   bool flag = true;
   int seconds = 0;
-  while (digitalRead(BUTTON_B) == LOW && minutes > 0) {
+  while (digitalRead(BUTTON_B) == LOW && minutes >= 0) {
     // Update every second
     if (millis() - LAST_TEXT_UPDATE >= 1000) {
       if (seconds < 0) {
-        seconds = 60;
+        seconds = 59;
         minutes--;
       }
-      seconds--;
+      
       LAST_TEXT_UPDATE = millis();
       if (flag) {
         displayTime(minutes, seconds, sprite_a, true, true);
       } else {
         displayTime(minutes, seconds, sprite_b, true, true);
       }
+      seconds--;
       flag = !flag;
     }
     delay(150);
