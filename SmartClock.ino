@@ -21,8 +21,8 @@
 // Software Options
 #define SCROLL_SPEED          75    // lower value is faster scrolling
 #define LONG_PRESS_DELAY_MS   1000
-#define STUDY_MINUTES         25
-#define BREAK_MINUTES         5
+#define STUDY_MINUTES         1
+#define BREAK_MINUTES         2
 
 // Sprite Struct for sprite animation frames
 typedef struct
@@ -67,6 +67,7 @@ const String QOTD_ENDPOINT = "http://quotes.rest/qod.json";
 unsigned long LAST_TEXT_UPDATE = 0;
 unsigned long LAST_SPRITE_UPDATE = 0;
 short STATE = 0;
+short CURRENT_BRIGHTNESS = 4;
 
 void setup() {
   Serial.begin(9600);
@@ -86,7 +87,7 @@ void setup() {
 
 void initializeMatrix() {
   matrix.begin();
-  matrix.setIntensity(0);
+  matrix.setIntensity(CURRENT_BRIGHTNESS);
   matrix.setInvert(false);
   matrix.setFont(nullptr);
   matrix.setCharSpacing(1);
@@ -136,6 +137,17 @@ void initializeTime() {
   delay(1000);
 }
 
+void handleBrightnessUpdate() {
+  if (digitalRead(BUTTON_A) == HIGH) {
+    CURRENT_BRIGHTNESS += 3;
+    if (CURRENT_BRIGHTNESS > 15) {
+      CURRENT_BRIGHTNESS = 0;
+    }
+    matrix.setIntensity(CURRENT_BRIGHTNESS);
+    // Await release of button before continuing
+    while (digitalRead(BUTTON_A) == HIGH) delay(150);
+  }
+}
 
 // MAIN PROCESSING LOOP
 // - utilizes button input
@@ -199,6 +211,7 @@ void handleTime() {
       curSpriteDelay--;
     }
     delay(150);
+    handleBrightnessUpdate();
   }
 
   // If this point is reached, button 2 is currently pressed!
@@ -313,6 +326,7 @@ void scrollText(const char* message) {
     }
     // Avoid soft WDT reset
     delay(10);
+    handleBrightnessUpdate();
   }
   initializeSpriteMatrix();
   STATE = 0;
@@ -328,8 +342,6 @@ void handlePomodoro() {
       return;
     }
     matrix.displayClear();
-    matrix.print("__SHt__");
-    delay(2000);
     for (int fistpump = 0; i < 10; i++) {
       matrix.print("rsrs");
       delay(500);
@@ -337,7 +349,9 @@ void handlePomodoro() {
       delay(500);
     }
     // Break Timer
-    countdownTimer(true);
+    if (i < 2) {
+      countdownTimer(true);
+    }
   }
   STATE = 0;
 }
@@ -357,6 +371,9 @@ void countdownTimer(bool isBreak) {
     // Update every second
     if (millis() - LAST_TEXT_UPDATE >= 1000) {
       if (seconds < 0) {
+        if (minutes == 0) {
+          break;
+        }
         seconds = 59;
         minutes--;
       }
@@ -370,6 +387,7 @@ void countdownTimer(bool isBreak) {
       seconds--;
       flag = !flag;
     }
+    handleBrightnessUpdate();
     delay(150);
   }
   while (digitalRead(BUTTON_B) == HIGH) {
