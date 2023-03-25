@@ -15,8 +15,8 @@
 #define MAX_DEVICES 4
 #define CS_PIN      15
 
-#define BUTTON_A    5
-#define BUTTON_B    4
+#define BUTTON_A    0
+#define BUTTON_B    2
 
 // Software Options
 #define SCROLL_SPEED          75    // lower value is faster scrolling
@@ -309,7 +309,7 @@ String getJSONQuote(String input) {
 
 void handleText() {
   Serial.println("STATE 2: Message Display");
-  scrollText("Hello! This is quite a long message that I'm displaying on my scrolling board!");
+  scrollText("Long Message Goes Here :)");
 }
 
 void scrollText(const char* message) {
